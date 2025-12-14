@@ -1,0 +1,41 @@
+# Environment variables
+.env
+
+# Temporary files
+temp/
+*.mp4
+*.wav
+*.srt
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Docker
+.docker/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# n8n
+.n8n/
+
+# Models cache (опционально, если хотите сохранить модели в git)
+# .cache/
+# models/
+

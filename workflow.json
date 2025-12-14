@@ -1,0 +1,786 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        10752,
+        4608
+      ],
+      "id": "1dfb08a2-6e6a-4695-acc8-a83b8eba2928",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.telegram.org/bot8258494682:AAGvKOZciWqugNFLEcHb8gPXxl18U7ZAR_0/getUpdates",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "offset",
+              "value": "={{ $vars.telegramOffset || 0 }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        10960,
+        4608
+      ],
+      "id": "db09afc3-824e-48d1-b957-ed743196768d",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b115accf-1de2-49c8-a037-98786d5077b6",
+              "leftValue": "={{ $json['result'].length > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "c8694386-9eab-4f5a-a341-2980f46176a2",
+              "leftValue": "={{ $json['result'][0].update_id > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        11136,
+        4608
+      ],
+      "id": "33dbcf58-43a4-4ebf-9395-1bec180aab98",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ab010354-d991-4a82-8d1c-5da762bc9f2f",
+              "name": "=N8N_TELEGRAM_LAST_UPDATE_ID",
+              "value": "={{ $json['result'][0].update_id }}",
+              "type": "string"
+            },
+            {
+              "id": "e25ee29e-57a8-42e3-bc44-f4b52bd2af22",
+              "name": "telegram_data",
+              "value": "={{ $json }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        11552,
+        4592
+      ],
+      "id": "598764e6-8134-4a2f-b391-fd0740dcb299",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "051aaead-bede-48fe-a989-01cb6d35e49b",
+                    "leftValue": "={{ $json.contentType }}",
+                    "rightValue": "video",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "ce7ec8ba-2415-49b9-8f2c-3d51c4aaf026",
+                    "leftValue": "={{ $json.contentType }}",
+                    "rightValue": "url",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        11872,
+        4528
+      ],
+      "id": "378bc901-303f-42fa-ad60-0d42e6f3f049",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "jsCode": "// КОД С ПРАВИЛЬНОЙ ОБРАБОТКОЙ JSON СТРОКИ (ДОПОЛНЕН ДЛЯ VIDEO)\ntry {\n  console.log('=== НАЧАЛО ОБРАБОТКИ ===');\n  \n  // Получаем все элементы\n  const allItems = $input.all();\n  console.log('Всего элементов:', allItems.length);\n  \n  // Ищем элемент с telegram_data\n  let telegramDataString = null;\n  \n  for (const item of allItems) {\n    if (item.json && item.json.telegram_data) {\n      telegramDataString = item.json.telegram_data;\n      console.log('✅ Найден telegram_data (тип:', typeof telegramDataString, ')');\n      break;\n    }\n  }\n  \n  if (!telegramDataString) {\n    console.log('❌ Не найден telegram_data');\n    return [];\n  }\n  \n  // ПАРСИМ JSON строку в объект\n  let telegramData;\n  try {\n    telegramData = JSON.parse(telegramDataString);\n    console.log('✅ JSON успешно распарсен');\n  } catch (parseError) {\n    console.error('❌ Ошибка парсинга JSON:', parseError.message);\n    console.log('Строка для парсинга:', telegramDataString.substring(0, 100) + '...');\n    return [];\n  }\n  \n  // Проверяем структуру\n  if (!telegramData.result || !Array.isArray(telegramData.result) || telegramData.result.length === 0) {\n    console.log('❌ Нет данных в result');\n    return [];\n  }\n  \n  const firstResult = telegramData.result[0];\n  \n  if (!firstResult.message) {\n    console.log('❌ Нет message в result[0]');\n    return [];\n  }\n  \n  const message = firstResult.message;\n  console.log('✅ Сообщение от:', message.from.first_name);\n  \n  // Определяем тип контента и данные\n  let contentType = 'text';\n  let contentData = '';\n  let isUrl = false;\n  let videoInfo = null;\n  \n  // ОБРАБОТКА ВИДЕО\n  // ОБРАБОТКА ВИДЕО\nif (message.video) {\n  contentType = 'video';\n  contentData = message.video.file_id; // file_id для скачивания через getFile\n  \n  // ⭐ СОХРАНЯЕМ ВСЕ ID ДЛЯ РАБОТЫ С ВИДЕО\n  videoInfo = {\n    // ОСНОВНЫЕ ID ДЛЯ API TELEGRAM\n    fileId: message.video.file_id,           // Для getFile и скачивания\n    fileUniqueId: message.video.file_unique_id, // Уникальный ID файла\n    thumbnailFileId: message.video.thumbnail?.file_id || null, // ID превью\n    \n    // МЕТАДАННЫЕ ВИДЕО\n    duration: message.video.duration,\n    width: message.video.width,\n    height: message.video.height,\n    fileSize: message.video.file_size,\n    fileName: message.video.file_name || '',\n    mimeType: message.video.mime_type || 'video/mp4',\n    \n    // ИНФОРМАЦИЯ О ПРЕВЬЮ (thumbnail)\n    thumbnail: message.video.thumbnail ? {\n      fileId: message.video.thumbnail.file_id,\n      fileUniqueId: message.video.thumbnail.file_unique_id,\n      fileSize: message.video.thumbnail.file_size,\n      width: message.video.thumbnail.width,\n      height: message.video.thumbnail.height\n    } : null,\n    \n    // ПОДПИСЬ\n    caption: message.caption || '',\n    hasCaption: !!message.caption,\n    \n    // ТЕХНИЧЕСКАЯ ИНФОРМАЦИЯ\n    fileType: 'video',\n    canBeDownloaded: true,\n    \n    // ССЫЛКИ ДЛЯ ПОЛУЧЕНИЯ ФАЙЛА (формируются)\n    getFileUrl: `https://api.telegram.org/bot{BOT_TOKEN}/getFile?file_id=${message.video.file_id}`,\n    downloadUrl: `https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}`\n  };\n  \n  console.log('🎬 Видео сообщение:');\n  console.log('   📁 File ID:', videoInfo.fileId.substring(0, 30) + '...');\n  console.log('   🆔 Unique ID:', videoInfo.fileUniqueId);\n  console.log('   📏 Разрешение:', videoInfo.width + 'x' + videoInfo.height);\n  console.log('   ⏱️ Длительность:', videoInfo.duration + 'сек');\n  console.log('   💾 Размер:', videoInfo.fileSize ? \n    Math.round(videoInfo.fileSize / 1024 / 1024 * 100) / 100 + 'MB' : 'неизвестно');\n  console.log('   🖼️ Превью:', videoInfo.thumbnail ? \n    `${videoInfo.thumbnail.width}x${videoInfo.thumbnail.height}` : 'нет');\n  console.log('   📝 Подпись:', videoInfo.caption || '(нет подписи)');\n}\n  // ОБРАБОТКА ТЕКСТА (оригинальная логика)\n  else if (message.text) {\n    contentData = message.text;\n    console.log('✅ Текст:', message.text.substring(0, 60) + '...');\n    \n    // Проверка на URL (оригинальная логика)\n    const urlRegex = /(https?:\\/\\/[^\\s]+)/g;\n    const urls = message.text.match(urlRegex);\n    if (urls && urls.length > 0) {\n      contentType = 'url';\n      isUrl = true;\n      console.log('🔗 Обнаружена ссылка');\n    }\n  }\n  // ЕСЛИ НИ ВИДЕО, НИ ТЕКСТ - ПРОБУЕМ ДРУГИЕ ТИПЫ\n  else if (message.caption) {\n    // Если есть только подпись (например, у фото без текста)\n    contentType = 'caption';\n    contentData = message.caption;\n    console.log('📝 Только подпись:', message.caption.substring(0, 60) + '...');\n  }\n  else {\n    console.log('⚠️ Неизвестный тип сообщения. Доступные поля:', Object.keys(message));\n    // Можно добавить обработку других типов по аналогии\n    return [];\n  }\n  \n  // Формируем результат (сохраняя оригинальную структуру + добавляем videoInfo если есть)\n  const result = {\n    json: {\n      // Основные данные\n      chatId: message.chat.id,\n      messageId: message.message_id,\n      updateId: firstResult.update_id,\n      \n      // Информация о пользователе\n      userId: message.from.id,\n      username: message.from.username || '',\n      firstName: message.from.first_name,\n      lastName: message.from.last_name || '',\n      \n      // Контент\n      contentType: contentType,\n      contentData: contentData,\n      text: message.text || message.caption || contentData, // Сохраняем текст или подпись\n      isUrl: isUrl,\n      \n      // Дополнительная информация о видео (если есть)\n      videoInfo: videoInfo,\n      \n      // Техническое\n      timestamp: message.date,\n      success: true,\n      processedAt: new Date().toISOString()\n    }\n  };\n  \n  console.log('✅ Обработано как:', contentType.toUpperCase());\n  return [result];\n  \n} catch (error) {\n  console.error('💥 Ошибка в Code node:', error.message);\n  console.error('Stack:', error.stack);\n  return [];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11696,
+        4592
+      ],
+      "id": "6d644873-4d55-4744-93a4-3a0d73d1324c",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.videoUrl }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        12224,
+        4624
+      ],
+      "id": "bfbf4b8d-0784-4389-821a-c9c084f79414",
+      "name": "HTTP Request2"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Обновлённый код для Code Node (после Switch 'url')\ntry {\n  const item = $input.first().json;\n  const videoUrl = item.contentData; // Теперь это прямая ссылка на видеофайл\n  \n  console.log('🎬 Получена ссылка на видеофайл:', videoUrl);\n  \n  // Проверяем, что это действительно ссылка на файл\n  const videoExtensions = ['.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv'];\n  const isVideoFile = videoExtensions.some(ext => \n    videoUrl.toLowerCase().includes(ext)\n  );\n  \n  if (!isVideoFile && !videoUrl.includes('dl=1') && !videoUrl.includes('download')) {\n    console.warn('⚠️ Ссылка может быть не на прямой файл. Возможны проблемы с загрузкой.');\n  }\n  \n  return [{\n    json: {\n      ...item,\n      videoUrl: videoUrl,\n      isDirectVideoLink: true,\n      readyForDownload: true,\n      // Метаданные будут получены после загрузки файла\n    }\n  }];\n  \n} catch (error) {\n  console.error('❌ Ошибка обработки ссылки:', error);\n  return [{\n    json: {\n      ...$input.first().json,\n      error: error.message,\n      readyForDownload: false\n    }\n  }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12080,
+        4624
+      ],
+      "id": "37378b51-c192-4c02-b5b7-1dde05cf514e",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "jsCode": "try {\n  const item = $input.first().json;\n  const binaryData = $input.first().binary;\n  \n  if (!binaryData || !binaryData.data) {\n    throw new Error('Файл не загружен или бинарные данные отсутствуют');\n  }\n  \n  console.log('✅ Видеофайл загружен успешно');\n  console.log('📏 Размер:', Math.round(binaryData.data.length / 1024 / 1024), 'MB');\n  console.log('📄 Имя файла:', binaryData.fileName || 'video.mp4');\n  console.log('🎞️ MIME тип:', binaryData.mimeType || 'video/mp4');\n  \n  return [{\n    json: {\n      ...item,\n      videoFileSize: Math.round(binaryData.data.length / 1024 / 1024) + ' MB',\n      videoFileName: binaryData.fileName || 'downloaded_video.mp4',\n      videoMimeType: binaryData.mimeType || 'video/mp4',\n      downloadSuccess: true,\n      downloadTimestamp: new Date().toISOString()\n    },\n    binary: binaryData\n  }];\n  \n} catch (error) {\n  console.error('❌ Ошибка обработки загруженного файла:', error);\n  return [{\n    json: {\n      ...$input.first().json,\n      downloadSuccess: false,\n      error: error.message\n    }\n  }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12384,
+        4624
+      ],
+      "id": "ba2f5f97-aa93-4982-b2f0-2e5503f6755b",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://video_processing:8080/extract_audio",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "video",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "dataAudio"
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        12544,
+        4400
+      ],
+      "id": "7d36146e-0101-4254-8753-0c8b8666acd5",
+      "name": "HTTP Request3"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://video_processing:8000/transcribe_to_srt",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "audio_file",
+              "inputDataFieldName": "dataAudio"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "dataSub"
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        12736,
+        4400
+      ],
+      "id": "1f8e3400-3169-4bf7-ab1c-ee0fb15f5311",
+      "name": "HTTP Request4"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Преобразование SRT файла в текст для отправки в LLM\ntry {\n  const item = $input.first();\n  const binaryData = item.binary?.dataSub;\n  \n  if (!binaryData || !binaryData.data) {\n    throw new Error('SRT файл не найден в бинарных данных');\n  }\n  \n  // Читаем SRT содержимое как строку UTF-8\n  let srtContent;\n  if (Buffer.isBuffer(binaryData.data)) {\n    srtContent = binaryData.data.toString('utf-8');\n  } else if (typeof binaryData.data === 'string') {\n    srtContent = binaryData.data;\n  } else {\n    // Пробуем преобразовать в Buffer, если это другой формат\n    srtContent = Buffer.from(binaryData.data).toString('utf-8');\n  }\n  \n  console.log('📄 SRT содержимое (первые 500 символов):', srtContent.substring(0, 500));\n  console.log('📏 Длина SRT:', srtContent.length);\n  \n  // Убеждаемся, что это не base64\n  if (srtContent.match(/^[A-Za-z0-9+/=]+$/) && srtContent.length > 100) {\n    console.log('⚠️ Похоже на base64, пробуем декодировать...');\n    try {\n      srtContent = Buffer.from(srtContent, 'base64').toString('utf-8');\n      console.log('✅ Base64 декодирован');\n    } catch (e) {\n      console.log('⚠️ Не удалось декодировать как base64, используем как есть');\n    }\n  }\n  \n  return [{\n    json: {\n      ...item.json,\n      srtContent: srtContent,\n      srtLength: srtContent.length\n    },\n    binary: item.binary\n  }];\n  \n} catch (error) {\n  console.error('❌ Ошибка обработки SRT:', error);\n  return [{\n    json: {\n      ...$input.first().json,\n      error: error.message\n    }\n  }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12896,
+        4400
+      ],
+      "id": "96789880-75a1-47ed-9e46-949d98924357",
+      "name": "Code: Prepare SRT for Translation"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Получение доступной модели и подготовка запроса к LLM\ntry {\n  const item = $input.first();\n  let srtContent = item.json.srtContent;\n  \n  if (!srtContent) {\n    throw new Error('SRT контент не найден');\n  }\n  \n  // Убеждаемся, что SRT контент - это текст, а не base64\n  if (srtContent.match(/^[A-Za-z0-9+/=]+$/) && srtContent.length > 100 && !srtContent.includes('-->')) {\n    console.log('⚠️ Похоже на base64, декодируем...');\n    try {\n      const decoded = Buffer.from(srtContent, 'base64').toString('utf-8');\n      if (decoded.includes('-->')) {\n        srtContent = decoded;\n        console.log('✅ Base64 декодирован успешно');\n      }\n    } catch (e) {\n      console.log('⚠️ Не удалось декодировать как base64');\n    }\n  }\n  \n  console.log('📄 Длина SRT для перевода:', srtContent.length);\n  console.log('📝 Первые 200 символов SRT:', srtContent.substring(0, 200));\n  \n  // Модель из docker-compose.yml (по умолчанию Qwen/Qwen2.5-7B-Instruct)\n  // vLLM использует модель из переменной окружения MODEL\n  // Если модель не загружена, попробуем получить список моделей с сервера\n  let modelName = 'Qwen/Qwen2.5-7B-Instruct'; // Модель по умолчанию из docker-compose.yml\n  \n  // Попробуем получить модель с сервера через /models endpoint\n  try {\n    const https = require('https');\n    const http = require('http');\n    \n    // Синхронный запрос не поддерживается в n8n Code node\n    // Поэтому используем модель по умолчанию\n    // В docker-compose.yml указано: MODEL=${LLM_MODEL:-Qwen/Qwen2.5-7B-Instruct}\n    console.log('🤖 Используем модель из docker-compose.yml:', modelName);\n  } catch (e) {\n    console.log('⚠️ Не удалось получить модель с сервера, используем по умолчанию');\n  }\n  \n  // Формируем запрос к LLM\n  const llmRequest = {\n    model: modelName,\n    messages: [\n      {\n        role: 'system',\n        content: 'Ты переводчик субтитров. Переведи английские субтитры из SRT файла на русский язык, сохранив формат SRT и временные метки. Верни только переведенный SRT контент без дополнительных объяснений.'\n      },\n      {\n        role: 'user',\n        content: srtContent\n      }\n    ],\n    temperature: 0.3,\n    max_tokens: 4000\n  };\n  \n  return [{\n    json: {\n      ...item.json,\n      srtContent: srtContent, // Обновленный SRT контент\n      llmRequest: llmRequest,\n      modelName: modelName\n    },\n    binary: item.binary\n  }];\n  \n} catch (error) {\n  console.error('❌ Ошибка подготовки запроса к LLM:', error);\n  return [{\n    json: {\n      ...$input.first().json,\n      error: error.message\n    }\n  }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        13072,
+        4400
+      ],
+      "id": "163aa9a1-e432-4c23-9fa8-558d1fedc427",
+      "name": "Code: Prepare LLM Request"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://vllm_server:8000/v1/chat/completions",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.llmRequest }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 300000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        13520,
+        4400
+      ],
+      "id": "4b6553fd-7677-4813-8ea7-0ad0386d7b9e",
+      "name": "HTTP Request5: Translate SRT"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Преобразование ответа LLM в бинарные данные SRT\ntry {\n  const item = $input.first();\n  const llmResponse = item.json;\n  \n  // Извлекаем переведенный текст из ответа LLM\n  let translatedSrt = '';\n  \n  if (llmResponse.choices && llmResponse.choices.length > 0) {\n    translatedSrt = llmResponse.choices[0].message.content.trim();\n  } else if (llmResponse.content) {\n    translatedSrt = llmResponse.content.trim();\n  } else {\n    throw new Error('Не найден переведенный текст в ответе LLM');\n  }\n  \n  console.log('📄 Сырой ответ LLM (первые 500 символов):', translatedSrt.substring(0, 500));\n  \n  // Очищаем ответ от тегов thinking и других артефактов LLM\n  // Удаляем теги <think>...</think>\n  translatedSrt = translatedSrt.replace(/<think>[\\s\\S]*?<\\/think>/gi, '');\n  \n  // Удаляем другие возможные теги XML/HTML\n  translatedSrt = translatedSrt.replace(/<[^>]+>/g, '');\n  \n  // Удаляем markdown code blocks если есть\n  translatedSrt = translatedSrt.replace(/```[\\s\\S]*?```/g, '');\n  \n  // Ищем начало SRT контента (обычно начинается с числа или времени)\n  // SRT формат: число, затем время в формате HH:MM:SS,mmm --> HH:MM:SS,mmm\n  const srtPattern = /(\\d+\\s*\\n\\d{2}:\\d{2}:\\d{2}[,\\.]\\d{3}\\s*-->\\s*\\d{2}:\\d{2}:\\d{2}[,\\.]\\d{3})/;\n  const match = translatedSrt.match(srtPattern);\n  \n  if (match && match.index !== undefined) {\n    // Находим начало SRT контента\n    translatedSrt = translatedSrt.substring(match.index).trim();\n    console.log('✅ Найден SRT контент, начинается с:', translatedSrt.substring(0, 100));\n  } else {\n    // Если паттерн не найден, пробуем найти по другим признакам\n    // Ищем строки с временными метками\n    const timePattern = /\\d{2}:\\d{2}:\\d{2}[,\\.]\\d{3}\\s*-->\\s*\\d{2}:\\d{2}:\\d{2}[,\\.]\\d{3}/;\n    const timeMatch = translatedSrt.match(timePattern);\n    if (timeMatch && timeMatch.index !== undefined) {\n      // Находим начало с временной метки\n      translatedSrt = translatedSrt.substring(timeMatch.index).trim();\n      // Добавляем номер субтитра в начало, если его нет\n      if (!/^\\d+\\s*$/.test(translatedSrt.split('\\n')[0])) {\n        translatedSrt = '1\\n' + translatedSrt;\n      }\n      console.log('✅ Найден SRT контент по временным меткам');\n    } else {\n      console.warn('⚠️ Не найден паттерн SRT, используем весь текст');\n    }\n  }\n  \n  // Очищаем от лишних пробелов в начале и конце\n  translatedSrt = translatedSrt.trim();\n  \n  // Проверяем, что это похоже на SRT (содержит временные метки)\n  if (!translatedSrt.includes('-->')) {\n    throw new Error('Переведенный текст не содержит временных меток SRT (-->)');\n  }\n  \n  console.log('✅ Очищенный SRT получен, длина:', translatedSrt.length);\n  console.log('📄 Первые 500 символов очищенного SRT:', translatedSrt.substring(0, 500));\n  \n  // Преобразуем в Buffer для бинарных данных\n  const srtBuffer = Buffer.from(translatedSrt, 'utf-8');\n  \n  return [{\n    json: {\n      ...item.json,\n      translatedSrtLength: translatedSrt.length\n    },\n    binary: {\n      dataTranslatedPubs: {\n        data: srtBuffer,\n        mimeType: 'text/plain',\n        fileName: 'subtitles_ru.srt'\n      }\n    }\n  }];\n  \n} catch (error) {\n  console.error('❌ Ошибка преобразования ответа LLM:', error);\n  return [{\n    json: {\n      ...$input.first().json,\n      error: error.message\n    }\n  }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        13664,
+        4400
+      ],
+      "id": "a59c5247-bd58-4365-8f33-e88f87115cbf",
+      "name": "Code: Convert LLM Response to SRT"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Сохранение исходного видео и субтитров для добавления субтитров\ntry {\n  const item = $input.first();\n  \n  console.log('🔍 Проверка входящих данных:');\n  console.log('  - item.binary keys:', item.binary ? Object.keys(item.binary) : 'нет binary');\n  \n  // Получаем переведенные субтитры из текущего элемента (от Code: Convert LLM Response to SRT)\n  let translatedSubtitles = null;\n  if (item.binary && item.binary.dataTranslatedPubs) {\n    translatedSubtitles = item.binary.dataTranslatedPubs;\n    console.log('✅ Субтитры найдены в текущем элементе');\n  } else {\n    // Пробуем получить из предыдущего узла\n    try {\n      const prevItem = $('Code: Convert LLM Response to SRT').first();\n      if (prevItem && prevItem.binary && prevItem.binary.dataTranslatedPubs) {\n        translatedSubtitles = prevItem.binary.dataTranslatedPubs;\n        console.log('✅ Субтитры найдены в предыдущем узле');\n      }\n    } catch (e) {\n      console.log('⚠️ Не удалось получить субтитры из предыдущего узла:', e.message);\n    }\n  }\n  \n  if (!translatedSubtitles) {\n    throw new Error('Переведенные субтитры не найдены. Проверьте, что узел Code: Convert LLM Response to SRT создал dataTranslatedPubs.');\n  }\n  \n  // Ищем исходное видео в бинарных данных из предыдущих узлов\n  let originalVideo = null;\n  let originalVideoMeta = null;\n  \n  // Пробуем получить из узла Code in JavaScript2 (для URL)\n  try {\n    const js2Item = $('Code in JavaScript2').first();\n    if (js2Item && js2Item.binary && js2Item.binary.data) {\n      // В n8n бинарные данные: { data: Buffer, fileName: string, mimeType: string }\n      originalVideo = js2Item.binary.data.data || js2Item.binary.data; // Buffer данных\n      originalVideoMeta = {\n        fileName: js2Item.binary.data.fileName || js2Item.json.videoFileName || 'video.mp4',\n        mimeType: js2Item.binary.data.mimeType || js2Item.json.videoMimeType || 'video/mp4'\n      };\n      console.log('✅ Исходное видео найдено в Code in JavaScript2');\n    }\n  } catch (e) {\n    console.log('⚠️ Не удалось получить из Code in JavaScript2:', e.message);\n  }\n  \n  // Если не найдено, пробуем получить из узла Get a file (для файла из Telegram)\n  if (!originalVideo) {\n    try {\n      const getFileItem = $('Get a file').first();\n      if (getFileItem && getFileItem.binary && getFileItem.binary.data) {\n        originalVideo = getFileItem.binary.data.data || getFileItem.binary.data;\n        originalVideoMeta = {\n          fileName: getFileItem.binary.data.fileName || 'video.mp4',\n          mimeType: getFileItem.binary.data.mimeType || 'video/mp4'\n        };\n        console.log('✅ Исходное видео найдено в Get a file');\n      }\n    } catch (e) {\n      console.log('⚠️ Не удалось получить из Get a file:', e.message);\n    }\n  }\n  \n  if (!originalVideo) {\n    throw new Error('Исходное видео не найдено. Проверьте, что видео было загружено в узле Code in JavaScript2 или Get a file.');\n  }\n  \n  console.log('📹 Исходное видео сохранено, размер:', Math.round(originalVideo.length / 1024 / 1024), 'MB');\n  console.log('📄 Субтитры сохранены, размер:', translatedSubtitles.data ? Math.round(translatedSubtitles.data.length / 1024) : 'неизвестно', 'KB');\n  \n  // Формируем правильную структуру бинарных данных для n8n\n  // В n8n бинарные данные имеют формат: { data: { data: Buffer, fileName: string, mimeType: string } }\n  const binaryData = {\n    data: {\n      data: originalVideo,\n      fileName: originalVideoMeta.fileName || 'video.mp4',\n      mimeType: originalVideoMeta.mimeType || 'video/mp4'\n    },\n    dataTranslatedPubs: translatedSubtitles  // Сохраняем переведенные субтитры\n  };\n  \n  console.log('✅ Бинарные данные сформированы:');\n  console.log('  - data:', binaryData.data ? 'есть' : 'нет');\n  console.log('  - dataTranslatedPubs:', binaryData.dataTranslatedPubs ? 'есть' : 'нет');\n  \n  // Сохраняем исходное видео и переведенные субтитры\n  return [{\n    json: {\n      ...item.json,\n      originalVideoSize: Math.round(originalVideo.length / 1024 / 1024) + ' MB'\n    },\n    binary: binaryData\n  }];\n  \n} catch (error) {\n  console.error('❌ Ошибка сохранения исходного видео:', error);\n  console.error('Stack:', error.stack);\n  return [{\n    json: {\n      ...$input.first().json,\n      error: error.message\n    }\n  }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        13808,
+        4400
+      ],
+      "id": "6a8ea273-84af-40bd-a896-d8e269abf53e",
+      "name": "Code: Preserve Original Video"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://video_processing:8080/burn_subtitles",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "video",
+              "inputDataFieldName": "data"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "subtitles",
+              "inputDataFieldName": "dataTranslatedPubs"
+            }
+          ]
+        },
+        "options": {
+          "response": {},
+          "timeout": 60000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        13952,
+        4400
+      ],
+      "id": "a676d122-b184-4fcc-89ed-1724926edfae",
+      "name": "HTTP Request6"
+    },
+    {
+      "parameters": {
+        "operation": "sendVideo",
+        "chatId": "={{ $('Code in JavaScript').item.json.chatId }}",
+        "binaryData": true,
+        "binaryPropertyName": "Final",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        14240,
+        4400
+      ],
+      "id": "1268b48b-efd1-43cf-9d75-8bd261dd2c8d",
+      "name": "Send a video",
+      "webhookId": "2e4226eb-68f0-45d7-a478-ea1fe06ee5fe",
+      "credentials": {
+        "telegramApi": {
+          "id": "2QLDYIGGwgd7xA0m",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $('Code in JavaScript').item.json.videoInfo.fileId }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        12096,
+        4400
+      ],
+      "id": "4a867bda-806a-40a1-b701-dc7232d11a5b",
+      "name": "Get a file",
+      "webhookId": "a7917f45-0d1e-43e3-a2a3-3bfbca3e91bb",
+      "credentials": {
+        "telegramApi": {
+          "id": "2QLDYIGGwgd7xA0m",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "try {\n  const updates = $input.first().json?.result || [];\n  let lastId = 0;\n  \n  // Находим последний update_id\n  for (const update of updates) {\n    if (update.update_id > lastId) {\n      lastId = update.update_id;\n    }\n  }\n  \n  // Сохраняем для следующего запуска\n  if (lastId > 0) {\n    $vars.set(\"telegramOffset\", lastId + 1);\n    console.log(`✅ Offset сохранен в переменные: ${lastId + 1}`);\n  }\n  \n  return $input.all();\n} catch(e) {\n  console.error('Error:', e);\n  return [];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11360,
+        4480
+      ],
+      "id": "57b11cc2-822b-4aee-873d-ae09a0133390",
+      "name": "Code in JavaScript3"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Подготовка видео для отправки в Telegram\ntry {\n  const item = $input.first();\n  \n  console.log('🔍 Проверка данных для отправки в Telegram:');\n  console.log('  - binary keys:', item.binary ? Object.keys(item.binary) : 'нет binary');\n  \n  // Получаем видео из поля Final (результат HTTP Request6)\n  let videoData = null;\n  \n  if (item.binary && item.binary.Final) {\n    videoData = item.binary.Final;\n    console.log('✅ Видео найдено в binary.Final');\n  } else if (item.binary && item.binary.data) {\n    videoData = item.binary.data;\n    console.log('✅ Видео найдено в binary.data');\n  } else {\n    // Пробуем найти в любом бинарном поле\n    const binaryKeys = Object.keys(item.binary || {});\n    if (binaryKeys.length > 0) {\n      videoData = item.binary[binaryKeys[0]];\n      console.log(`✅ Видео найдено в binary.${binaryKeys[0]}`);\n    }\n  }\n  \n  if (!videoData) {\n    throw new Error('Видео не найдено в бинарных данных. Проверьте, что HTTP Request6 вернул видео в поле Final.');\n  }\n  \n  // Проверяем структуру данных\n  if (!videoData.data) {\n    // Если data нет, возможно это уже Buffer\n    if (Buffer.isBuffer(videoData)) {\n      videoData = {\n        data: videoData,\n        fileName: 'video_with_subtitles.mp4',\n        mimeType: 'video/mp4'\n      };\n      console.log('✅ Видео преобразовано из Buffer');\n    } else {\n      throw new Error('Структура бинарных данных неправильная. Ожидается { data: Buffer, fileName: string, mimeType: string }');\n    }\n  }\n  \n  // Убеждаемся, что есть fileName и mimeType\n  if (!videoData.fileName) {\n    videoData.fileName = 'video_with_subtitles.mp4';\n  }\n  if (!videoData.mimeType) {\n    videoData.mimeType = 'video/mp4';\n  }\n  \n  console.log('📹 Видео подготовлено:');\n  console.log('  - fileName:', videoData.fileName);\n  console.log('  - mimeType:', videoData.mimeType);\n  console.log('  - размер:', videoData.data ? Math.round(videoData.data.length / 1024 / 1024) : 'неизвестно', 'MB');\n  \n  // Формируем правильную структуру для Telegram\n  return [{\n    json: {\n      ...item.json,\n      chatId: $('Code in JavaScript').first().json.chatId\n    },\n    binary: {\n      Final: videoData  // Правильная структура для Telegram node\n    }\n  }];\n  \n} catch (error) {\n  console.error('❌ Ошибка подготовки видео:', error);\n  console.error('Stack:', error.stack);\n  return [{\n    json: {\n      ...$input.first().json,\n      error: error.message\n    }\n  }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14096,
+        4400
+      ],
+      "id": "b3d5a5a6-761e-47ea-b534-09d9349ac174",
+      "name": "Code: Prepare Video for Telegram"
+    },
+    {
+      "parameters": {
+        "url": "http://vllm_server:8000/v1/models",
+        "options": {
+          "response": {},
+          "timeout": 10000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        13232,
+        4400
+      ],
+      "id": "a3f0d1dc-efed-48cb-8261-d12b4c8253a5",
+      "name": "HTTP Request: Get Models"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Определение модели из списка доступных и подготовка запроса\ntry {\n  const modelsResponse = $input.first().json;\n  const previousItem = $('Code: Prepare LLM Request').first().json;\n  \n  let modelName = 'Qwen/Qwen2.5-7B-Instruct'; // Модель по умолчанию\n  \n  // Пытаемся получить модель из ответа сервера\n  if (modelsResponse && modelsResponse.data && modelsResponse.data.length > 0) {\n    // vLLM возвращает список моделей в формате { data: [{ id: 'model-name' }] }\n    modelName = modelsResponse.data[0].id;\n    console.log('✅ Найдена модель на сервере:', modelName);\n  } else if (modelsResponse && modelsResponse.model) {\n    // Альтернативный формат ответа\n    modelName = modelsResponse.model;\n    console.log('✅ Модель из ответа:', modelName);\n  } else {\n    console.log('⚠️ Не удалось получить модель с сервера, используем по умолчанию:', modelName);\n  }\n  \n  const srtContent = previousItem.srtContent;\n  \n  // Формируем запрос к LLM\n  const llmRequest = {\n    model: modelName,\n    messages: [\n      {\n        role: 'system',\n        content: 'Ты переводчик субтитров. Переведи английские субтитры из SRT файла на русский язык, сохранив формат SRT и временные метки. Верни только переведенный SRT контент без дополнительных объяснений.'\n      },\n      {\n        role: 'user',\n        content: srtContent\n      }\n    ],\n    temperature: 0.3,\n    max_tokens: 4000\n  };\n  \n  return [{\n    json: {\n      ...previousItem,\n      llmRequest: llmRequest,\n      modelName: modelName,\n      availableModels: modelsResponse.data || []\n    },\n    binary: $('Code: Prepare LLM Request').first().binary\n  }];\n  \n} catch (error) {\n  console.error('❌ Ошибка определения модели:', error);\n  // Fallback на модель по умолчанию\n  const previousItem = $('Code: Prepare LLM Request').first().json;\n  const modelName = 'Qwen/Qwen2.5-7B-Instruct';\n  \n  const llmRequest = {\n    model: modelName,\n    messages: [\n      {\n        role: 'system',\n        content: 'Ты переводчик субтитров. Переведи английские субтитры из SRT файла на русский язык, сохранив формат SRT и временные метки. Верни только переведенный SRT контент без дополнительных объяснений.'\n      },\n      {\n        role: 'user',\n        content: previousItem.srtContent\n      }\n    ],\n    temperature: 0.3,\n    max_tokens: 4000\n  };\n  \n  return [{\n    json: {\n      ...previousItem,\n      llmRequest: llmRequest,\n      modelName: modelName\n    },\n    binary: $('Code: Prepare LLM Request').first().binary\n  }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        13392,
+        4400
+      ],
+      "id": "2286c9d1-dab2-463f-8113-4c3e1d93d705",
+      "name": "Code: Determine Model"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript3",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Get a file",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request2": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request3": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request4": {
+      "main": [
+        [
+          {
+            "node": "Code: Prepare SRT for Translation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Prepare SRT for Translation": {
+      "main": [
+        [
+          {
+            "node": "Code: Prepare LLM Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Prepare LLM Request": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request: Get Models",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request5: Translate SRT": {
+      "main": [
+        [
+          {
+            "node": "Code: Convert LLM Response to SRT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Convert LLM Response to SRT": {
+      "main": [
+        [
+          {
+            "node": "Code: Preserve Original Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Preserve Original Video": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request: Get Models": {
+      "main": [
+        [
+          {
+            "node": "Code: Determine Model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Determine Model": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request5: Translate SRT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request6": {
+      "main": [
+        [
+          {
+            "node": "Code: Prepare Video for Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Prepare Video for Telegram": {
+      "main": [
+        [
+          {
+            "node": "Send a video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a file": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript3": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "445df4fb-2cab-4eb1-af2c-3f10fcd02df7",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4e8499e5babf3d9b81ad21f4dec6219ff84e30a755d4c94f68c1065f8c86af0c"
+  },
+  "id": "7SFxJqVNnIa9pzGV",
+  "tags": []
+}

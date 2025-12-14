@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  n8n:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: n8n
+    container_name: n8n
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:-admin}
+      - N8N_HOST=${N8N_HOST:-localhost}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678/
+      - GENERIC_TIMEZONE=Europe/Moscow
+      - TZ=Europe/Moscow
+      - EXECUTIONS_MODE=regular
+      - N8N_METRICS=true
+      - N8N_LOG_LEVEL=info
+      - N8N_COMMUNITY_NODES_FETCH_TIMEOUT=10000
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-8258494682:AAGvKOZciWqugNFLEcHb8gPXxl18U7ZAR_0}
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./workflows:/data/workflows
+      - ./temp:/data/temp
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - video_processing_network
+    depends_on:
+      vllm_server:
+        condition: service_started
+      video_processing:
+        condition: service_healthy
+    restart: unless-stopped
+
+  video_processing:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: python-services
+    container_name: video_processing
+    ports:
+      - "8001:8000"
+      - "8080:8080"
+    environment:
+      - TEMP_DIR=/data/temp
+      - MODEL_SIZE=${WHISPER_MODEL_SIZE:-base}
+      - DEVICE=${WHISPER_DEVICE:-cpu}
+    volumes:
+      - ./temp:/data/temp
+      - ./temp:/app/temp
+      - whisper_models:/root/.cache/whisper
+    networks:
+      - video_processing_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -f http://localhost:8000/health && curl -f http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  vllm_server:
+    image: vllm/vllm-openai:latest
+    container_name: vllm_server
+    ports:
+      - "8000:8000"
+    environment:
+      - MODEL=${LLM_MODEL:-Qwen/Qwen2.5-7B-Instruct}
+      - TRUST_REMOTE_CODE=true
+      - GPU_MEMORY_UTILIZATION=0.9
+    volumes:
+      - llm_models:/root/.cache/huggingface
+    networks:
+      - video_processing_network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 300s
+
+volumes:
+  n8n_data:
+  whisper_models:
+  llm_models:
+
+networks:
+  video_processing_network:
+    driver: bridge
